@@ -466,7 +466,7 @@ PyObject* TensorGuards_check(
   for (auto i : c10::irange(len)) {
     PyObject* item = PyTuple_GET_ITEM(args, i);
 
-    if (Py_TYPE(item) != checks[i].pytype) {
+    if (!PyObject_TypeCheck(item, checks[i].pytype)) {
       Py_RETURN_FALSE;
     }
     auto insertion = unique_tensors.insert({item, nullptr});
@@ -534,7 +534,7 @@ PyObject* TensorGuards_check_verbose(
   ska::flat_hash_map<PyObject*, std::nullptr_t> unique_tensors;
   for (auto i : c10::irange(len)) {
     PyObject* item = PyTuple_GET_ITEM(args, i);
-    if (Py_TYPE(item) != checks[i].pytype) {
+    if (!PyObject_TypeCheck(item, checks[i].pytype)) {
       std::stringstream fail_reason;
       PyObject* type_str =
           PyObject_Str(reinterpret_cast<PyObject*>(Py_TYPE(item)));
@@ -5046,7 +5046,7 @@ class TENSOR_MATCH : public LeafGuard {
   }
 
   bool check_nopybind(PyObject* value) override { // borrowed ref
-    if (Py_TYPE(value) != _tensor_check->pytype) {
+    if (!PyObject_TypeCheck(value, _tensor_check->pytype)) {
       return false;
     }
     return _tensor_check->check(
@@ -5056,7 +5056,7 @@ class TENSOR_MATCH : public LeafGuard {
   GuardDebugInfo check_verbose_nopybind(
       PyObject* value) override { // borrowed ref
 
-    if (Py_TYPE(value) != _tensor_check->pytype) {
+    if (!PyObject_TypeCheck(value, _tensor_check->pytype)) {
       std::stringstream fail_reason;
       PyObject* type_str =
           PyObject_Str(reinterpret_cast<PyObject*>(Py_TYPE(value)));
@@ -5082,6 +5082,11 @@ class TENSOR_MATCH : public LeafGuard {
         fail_reason +=
             "torch._dynamo.config.force_parameter_static_shapes = False ";
         fail_reason += "to allow dynamism on parameters.";
+        if (fail_reason.find("requires_grad mismatch") != std::string::npos) {
+          fail_reason += " Parameters default to requires_grad=True, so a ";
+          fail_reason += "plain Tensor input compiled with requires_grad=False ";
+          fail_reason += "will still recompile.";
+        }
       }
       return GuardDebugInfo(false, fail_reason, 0);
     }

@@ -321,6 +321,73 @@ class RecompileTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(dynamic_comp_dynamic_param.frame_count, 2)
         self.assertEqual(dynamic_comp_dynamic_param.op_count, 2)
 
+    @patch.object(torch._dynamo.config, "force_parameter_static_shapes", True)
+    def test_mark_dynamic_overrides_parameter_static_shapes(self):
+        def foo(x):
+            return x.sin() + 1
+
+        cnt = torch._dynamo.testing.CompileCounter()
+        opt = torch.compile(foo, backend=cnt, fullgraph=True, dynamic=True)
+
+        for shape in [(2, 2), (3, 3), (1, 1)]:
+            x = torch.nn.Parameter(torch.ones(shape), requires_grad=False)
+            for dim in range(x.dim()):
+                torch._dynamo.mark_dynamic(x, dim)
+            opt(x)
+
+        self.assertEqual(cnt.frame_count, 1)
+        self.assertEqual(cnt.op_count, 2)
+
+    def test_tensor_and_parameter_inputs_share_tensor_guards(self):
+        def foo(x):
+            return x.sin() + 1
+
+        cnt = torch._dynamo.testing.CompileCounter()
+        opt = torch.compile(foo, backend=cnt, fullgraph=True)
+
+        x = torch.ones((2, 2), requires_grad=False)
+        p = torch.nn.Parameter(torch.ones((2, 2)), requires_grad=False)
+
+        opt(x)
+        opt(p)
+        opt(x)
+
+        self.assertEqual(cnt.frame_count, 1)
+        self.assertEqual(cnt.op_count, 2)
+
+    def test_tensor_and_parameter_inputs_share_tensor_guards_with_requires_grad(self):
+        def foo(x):
+            return x.sin() + 1
+
+        cnt = torch._dynamo.testing.CompileCounter()
+        opt = torch.compile(foo, backend=cnt, fullgraph=True)
+
+        x = torch.ones((2, 2), requires_grad=True)
+        p = torch.nn.Parameter(torch.ones((2, 2)), requires_grad=True)
+
+        opt(x)
+        opt(p)
+        opt(x)
+
+        self.assertEqual(cnt.frame_count, 1)
+        self.assertEqual(cnt.op_count, 2)
+
+    def test_tensor_and_parameter_inputs_recompile_on_requires_grad_mismatch(self):
+        def foo(x):
+            return x.sin() + 1
+
+        cnt = torch._dynamo.testing.CompileCounter()
+        opt = torch.compile(foo, backend=cnt, fullgraph=True)
+
+        x = torch.ones((2, 2), requires_grad=False)
+        p = torch.nn.Parameter(torch.ones((2, 2)), requires_grad=True)
+
+        opt(x)
+        opt(p)
+
+        self.assertEqual(cnt.frame_count, 2)
+        self.assertEqual(cnt.op_count, 4)
+
     def test_simple_module_recompile(self):
         class SimpleDropout(torch.nn.Module):
             def __init__(self) -> None:

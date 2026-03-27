@@ -391,6 +391,7 @@ def _broadcast_shapes(*_shapes):
         guarding_hint_or_throw,
         has_guarding_hint,
         is_nested_int,
+        statically_known_true,
     )
 
     backed_so = torch.fx.experimental._config.backed_size_oblivious
@@ -445,17 +446,17 @@ def _broadcast_shapes(*_shapes):
                         torch._check(shape[idx] == 1)
                     if b == 1 and a != 1:
                         torch._check(common_shape[idx] == 1)
-                if guard_or_false(shape[idx] == common_shape[idx]):
+                if statically_known_true(shape[idx] == common_shape[idx]):
                     continue
 
-            if guard_or_false(common_shape[idx] == 1):
+            if statically_known_true(common_shape[idx] == 1):
                 if shape[idx] < 0:
                     raise ValueError(
                         "Attempting to broadcast a dimension with negative length!"
                     )
                 common_shape[idx] = shape[idx]
 
-            if not is_nested_int(shape[idx]) and guard_or_false(shape[idx] == 1):
+            if not is_nested_int(shape[idx]) and statically_known_true(shape[idx] == 1):
                 # broadcast case .
                 continue
             else:
@@ -479,6 +480,7 @@ def _maybe_broadcast(*args, preserve_cpu_scalar_tensors=True):
     def should_expand(a: ShapeType, b: ShapeType) -> bool:
         from torch.fx.experimental.symbolic_shapes import (
             guard_or_false,
+            statically_known_true,
             sym_and,
             sym_or,
         )
@@ -487,16 +489,16 @@ def _maybe_broadcast(*args, preserve_cpu_scalar_tensors=True):
             return True
 
         for x, y in zip(a, b):
-            if guard_or_false(x != y):
+            if statically_known_true(x != y):
                 # We know they are not the same.
                 return True
 
             # They are the same or we do not know if they are the same or not.
             # 1==1 no-broadcast
             # u0==1 and 1==u0 cases. We broadcast!
-            if guard_or_false(sym_and(x == 1, y == 1)):
+            if statically_known_true(sym_and(x == 1, y == 1)):
                 pass
-            elif guard_or_false(sym_or(x == 1, y == 1)):
+            elif statically_known_true(sym_or(x == 1, y == 1)):
                 # assume broadcasting.
                 return True
 

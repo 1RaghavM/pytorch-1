@@ -5576,6 +5576,9 @@ class ShapeEnv:
         else:
             specialize_zero_one = self.specialize_zero_one
 
+        if constraint_dim is not None and not constraint_dim.warn_only:
+            specialize_zero_one = False
+
         if not isinstance(source, Source):
             raise AssertionError(f"{type(source)} {source}")
         if positive and dynamic_dim is not DimDynamic.UNBACKED and val < 0:
@@ -5647,13 +5650,18 @@ class ShapeEnv:
 
             if isinstance(val, int):
                 if positive:
-                    # Add assertions for the newly created symbols
-                    self._add_assertion(sympy_expr > 1)
-
-                    # Apply default range, which assumes not zero-one
-                    self.var_to_range[sympy_expr] = self._default_value_range(
-                        do_not_specialize_zero_one
-                    )
+                    if specialize_zero_one:
+                        # Add assertions for the newly created symbols
+                        self._add_assertion(sympy_expr > 1)
+                        self.var_to_range[sympy_expr] = self._default_value_range(
+                            do_not_specialize_zero_one
+                        )
+                    else:
+                        # Explicit dynamic constraints may legitimately include
+                        # 0/1, so start from a non-negative range instead of
+                        # the default [2, +inf) specialization range.
+                        self._add_assertion(sympy_expr >= 0)
+                        self.var_to_range[sympy_expr] = ValueRanges(0, int_oo)
                     self.var_to_range_sloc[sympy_expr] = ValueRangesSLoc(
                         self._get_sloc(
                             "user code shown is first use of this value--the guard itself is not "

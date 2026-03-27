@@ -268,6 +268,7 @@ def check_contiguous_sizes_strides(sizes, strides, false_if_dde=False):
         guard_or_false,
         guard_or_true,
         is_nested_int,
+        statically_known_true,
     )
 
     def eval_eager(x):
@@ -282,11 +283,14 @@ def check_contiguous_sizes_strides(sizes, strides, false_if_dde=False):
     # pyrefly: ignore [bad-assignment]
     for x, y in reversed(tuple(zip(sizes, strides))):
         # Skips checking strides when a dimension has length 1.
-        if maybe_guard_or_false(x == 1):
+        if statically_known_true(x == 1):
             continue
+        if not statically_known_true(x != 1):
+            return False
 
-        if maybe_guard_or_true(y != expected_stride) and maybe_guard_or_true(
-            y != expected_stride_max
+        if not (
+            statically_known_true(y == expected_stride)
+            or statically_known_true(y == expected_stride_max)
         ):
             return False
 
@@ -311,7 +315,7 @@ def is_contiguous(a: TensorLikeType, false_if_dde=False) -> bool:
     """
     from torch.fx.experimental.symbolic_shapes import (
         guard_or_false,
-        guard_size_oblivious,
+        statically_known_true,
     )
 
     def eval_eager(x):
@@ -319,8 +323,10 @@ def is_contiguous(a: TensorLikeType, false_if_dde=False) -> bool:
 
     maybe_guard_or_false = guard_or_false if false_if_dde else eval_eager
 
-    if maybe_guard_or_false(a.numel() < 2):
+    if statically_known_true(a.numel() < 2):
         return True
+    if not statically_known_true(a.numel() >= 2):
+        return False
 
     return check_contiguous_sizes_strides(
         a.shape, a.stride(), false_if_dde=false_if_dde
@@ -605,24 +611,28 @@ def compute_elementwise_output_logical_to_physical_perm(
     shape = tensors[0].shape
 
     def should_swap(idx_a, idx_b):
+        from torch.fx.experimental.symbolic_shapes import statically_known_true
+
         def ge(a, b):
             """
             Returns true if a is symbolically greater than or equal to b, assuming a >= 0, b >= 0.
             """
-            if guard_or_false(b == 0):
+            if statically_known_true(b == 0):
                 return True
-            elif guard_or_false(a == 0):
+            elif statically_known_true(a == 0):
                 return False
-            return guard_or_false(a >= b) or guard_or_false(a % b == 0)
+            return statically_known_true(a >= b) or statically_known_true(a % b == 0)
 
         for tensor in tensors:
             stride_a = tensor.stride()[idx_a]
             stride_b = tensor.stride()[idx_b]
 
-            if guard_or_false(stride_a == 0) or guard_or_false(stride_b == 0):
+            if statically_known_true(stride_a == 0) or statically_known_true(
+                stride_b == 0
+            ):
                 continue
 
-            if guard_or_false(stride_a == stride_b):
+            if statically_known_true(stride_a == stride_b):
                 if ge(shape[idx_b], shape[idx_a]):
                     continue
                 return 1
