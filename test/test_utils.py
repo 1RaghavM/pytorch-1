@@ -396,7 +396,6 @@ class TestCheckpoint(TestCase):
     @unittest.skipIf(not torch.accelerator.is_available(), "No accelerator")
     def test_checkpointing_without_reentrant_early_free(self):
         _acc = torch.accelerator.current_accelerator()
-        assert _acc is not None
         _device_type = _acc.type
 
         def _do_test(fn, should_free):
