@@ -398,7 +398,6 @@ class TestCheckpoint(TestCase):
         _acc = torch.accelerator.current_accelerator()
         _device_type = _acc.type  # type: ignore[union-attr]
 
-
         def _do_test(fn, should_free):
             stats: list[int] = []
 
