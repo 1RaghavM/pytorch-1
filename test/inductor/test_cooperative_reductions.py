@@ -34,7 +34,7 @@ class TestVarianceReductionHeuristic(TestCase):
             dtypes.append(torch.bfloat16)
         return dtypes
 
-    def test_var_mean_uses_two_step_for_non_split_reductions(self):
+    def test_var_mean_keeps_welford_for_large_lowp_reductions(self):
         self._skip_if_not_cuda()
 
         def fn(x):
@@ -48,8 +48,8 @@ class TestVarianceReductionHeuristic(TestCase):
             )
 
             self.assertEqual(result, expected)
-            self.assertIn("tl.sum", source_code)
-            self.assertNotIn("welford_reduce", source_code)
+            self.assertIn("welford_", source_code)
+            self.assertNotIn("tl.sum", source_code)
 
     def test_var_mean_keeps_welford_for_float32_reductions(self):
         self._skip_if_not_cuda()
@@ -72,7 +72,7 @@ class TestVarianceReductionHeuristic(TestCase):
             return torch.var_mean(x, dim=-1, correction=0)
 
         for dtype in self._dtypes():
-            x = torch.randn([4, 512], device=GPU_TYPE, dtype=dtype)
+            x = torch.randn([4, 64], device=GPU_TYPE, dtype=dtype)
             expected = fn(x)
             result, (source_code,) = run_and_get_code(
                 torch.compile(fn, fullgraph=True), x
