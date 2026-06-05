@@ -2481,8 +2481,11 @@ class CleanupManager(ExactWeakKeyDictionary):
     count = 0
     instance: ClassVar[CleanupManager]
 
+    def cleanup(self, key: Any) -> None:
+        self._remove_id(id(key))
+
     def _remove_id(self, idx: int) -> None:
-        for hook in self.values[idx]:
+        for hook in self.values.get(idx, ()):
             hook()
         super()._remove_id(idx)
 
