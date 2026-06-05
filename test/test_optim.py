@@ -2235,11 +2235,7 @@ class TestOptimRenewed(TestCase):
 
     @onlyAccelerator
     @optims(
-        [
-            optim
-            for optim in optim_db
-            if "cpu" in optim.supports_fused_on
-        ],
+        [optim for optim in optim_db if "cpu" in optim.supports_fused_on],
         dtypes=floating_types_and(
             torch.bfloat16,
             torch.float16,
